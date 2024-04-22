@@ -7,6 +7,13 @@ import time
 
 import mido
 
+"""
+Plays random intervals on the piano and the user shall guess them.
+
+Requires:
+
+    pip install mido python-rtmidi
+"""
 
 names = mido.get_output_names()
 piano = list(filter(lambda x: 'FP-30' in x, names))
@@ -17,6 +24,7 @@ if len(piano) == 0:
 
 port = mido.open_ioport(piano[0])
 print(f'Connected to {piano[0]}')
+random.seed()
 
 
 int_names = [
@@ -37,6 +45,27 @@ int_names = [
 
 Major = [0,2,4,5,7,9,11]
 Minor = [0,2,3,5,7,8,10]
+C4 = 60
+C3 = C4 - 12
+
+class Chords:
+    M = [0, 4, 7]
+    m = [0, 3, 7]
+    d = [0, 3, 6]
+    M7 = [0, 4, 7, 10]
+    Maj7 = [0, 4, 7, 11]
+    m7 = [0, 3, 7, 10]
+
+
+def chord(n, c):
+    return [x+n for x in c]
+
+def inv_cord(chord, inv=0):
+    ichord = chord[:]
+    for i in range(inv):
+        t = ichord.pop(0)
+        ichord.append(t+12)
+    return ichord
 
 def play_notes(notes, delay=0, duration=1.0, arp=False, channel=1):
     for note in notes:
@@ -65,8 +94,11 @@ def guess_note(choice=Major+[12]):
         o = 0
         n = base_n + o + k
         print(o, k)
-        play_notes((n,))
         while True:
+            for m in port.iter_pending():  # clear input buffer
+                pass
+            print("Listeninig ....")
+            play_notes((base_n, n,), delay=0.5)
             m = port.receive()
             if m.type == 'note_on':
                 inote = m.note
@@ -75,7 +107,7 @@ def guess_note(choice=Major+[12]):
                 if inote == 22:
                     break
                 if inote == 23:
-                    play_notes((n,))
+                    #play_notes((n,))
                     continue
                 if inote == n:
                     print("OK")
@@ -85,8 +117,10 @@ def guess_note(choice=Major+[12]):
                 else:
                     a = inote % 12
                     print(f"Error:{k} -> {a}")
+                    time.sleep(0.2)
+                    play_notes((83,), channel=9, duration=0.3)
 
-        time.sleep(2)
+        time.sleep(1)
 
 
 def play_random_intervals(n=10, choice=list(range(13)), base=None):
@@ -117,5 +151,72 @@ def print_intervals():
     for i, n in enumerate(int_names):
         print(i, n)
 
+def play_random_chords(choice=Major, base=C4):
+    while True:
+        base_note = base + random.choice(choice)
+        chord_type = random.choice((
+            Chords.M,
+            Chords.m,
+            #Chords.d,
+            #Chords.M7,
+            #Chords.Maj7,
+            #Chords.m7,
+            ))
+        print(base_note, chord_type)
+        #play_notes((base_note-12, ), 0.3)
+        play_notes(chord(base_note, chord_type), 0)
+
+        while True:
+            m = port.receive()
+            if m.type == 'note_on':
+                inote = m.note
+                if inote == 21:   # A
+                    break
+                if inote == 22:   #  A# 
+                    #play_notes((base_note - 12, ), 0.3)
+                    play_notes(chord(base_note, chord_type), 0)
+                if inote == 23:   #   B
+                    play_notes(chord(base_note, chord_type), 0.2)
+
+        time.sleep(1)
+
+
+def random_chords_from_scale(base=C4):
+    c=[
+            (base+0, Chords.M),
+            (base+2, Chords.m),
+            (base+4, Chords.m),
+            (base+5, Chords.M),
+            (base+7, Chords.M),
+            (base+9, Chords.m),
+            (base+11, Chords.d),
+            (base+12, Chords.M),
+    ]
+    while True:
+        base_note, chord_type = random.choice(c)
+        ichord = inv_cord(chord_type, random.choice((0,1,2)))
+        print(base_note, ichord)
+        #play_notes((base_note-12, ), 0.3)
+        play_notes(chord(base_note, ichord), 0)
+
+        while True:
+            m = port.receive()
+            if m.type == 'note_on':
+                inote = m.note
+                if inote == 21:   # A
+                    break
+                if inote == 22:   #  A# 
+                    #play_notes((base_note - 12, ), 0.3)
+                    play_notes(chord(base_note, ichord), 0)
+                if inote == 23:   #   B
+                    play_notes(chord(base_note, ichord), 0.2)
+
+        time.sleep(1)
+
+
+
 if __name__ == '__main__':
-    guess_note()
+    #c = Major + [12] +  [x - 12 for x in Major]
+    #guess_note(c)
+    #play_random_chords(choice=range(13))
+    random_chords_from_scale(C3)
